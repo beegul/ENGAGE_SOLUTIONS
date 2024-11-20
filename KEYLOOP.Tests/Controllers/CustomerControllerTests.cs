@@ -173,7 +173,70 @@ namespace KEYLOOP.Tests.Controllers
                 .ReturnsAsync(new HttpResponseMessage
                 {
                     StatusCode = HttpStatusCode.OK,
-                    Content = new StringContent("{ \"invalid json\" }") // Add quotes around the property name
+                    Content = new StringContent("{ \"invalid json\" }") 
+                });
+
+            // Act
+            var result = await _controller.GetCustomer("testCustomerId");
+
+            // Assert
+            result.Should().BeOfType<ObjectResult>();
+            var objectResult = (ObjectResult)result;
+            objectResult.StatusCode.Should().Be(500);
+        }
+
+        [Fact]
+        public async Task GetCustomer_ReturnsBadRequest_WhenApiResponseIsInvalidJson()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{ \"invalid\": json }", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.GetCustomer("testCustomerId");
+
+            // Assert
+            result.Should().BeOfType<ObjectResult>();
+            var objectResult = (ObjectResult)result;
+            objectResult.StatusCode.Should().Be(500); 
+        }
+
+        [Fact]
+        public async Task GetCustomer_ReturnsBadRequest_WhenKeyloopApiReturnsBadRequest()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.BadRequest,
+                    Content = new StringContent("Bad request from Keyloop API")
+                });
+
+            // Act
+            var result = await _controller.GetCustomer("testCustomerId");
+
+            // Assert
+            result.Should().BeOfType<ObjectResult>();
+            var objectResult = (ObjectResult)result;
+            objectResult.StatusCode.Should().Be(400); 
+        }
+
+        [Fact]
+        public async Task GetCustomer_ReturnsInternalServerError_WhenCustomerResponseIsNull()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("null", Encoding.UTF8, "application/json") 
                 });
 
             // Act

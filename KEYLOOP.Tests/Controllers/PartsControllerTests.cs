@@ -267,6 +267,281 @@ namespace KEYLOOP.Tests.Controllers
             objectResult.StatusCode.Should().Be(500);
         }
         
+        [Fact]
+        public async Task SearchParts_ReturnsBadRequest_WhenApiResponseIsInvalidJson()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{ \"invalid\": json }", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.SearchParts("B1", "123");
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500); // Expecting Internal Server Error
+        }
+        
+        [Fact]
+        public async Task SearchParts_ReturnsBadRequest_WhenKeyloopApiReturnsBadRequest()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.BadRequest, 
+                    Content = new StringContent("Bad request from Keyloop API")
+                });
+
+            // Act
+            var result = await _controller.SearchParts("B1", "123");
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(400);
+        }
+        
+        [Fact]
+        public async Task SearchParts_ReturnsInternalServerError_WhenGetPriceAndAvailabilityThrowsException()
+        {
+            // Arrange
+            var partResponse = CreateSamplePartResponse();
+            var responseContent = new StringContent(JsonSerializer.Serialize(partResponse), Encoding.UTF8, "application/json");
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req
+                        => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.StartsWith("/parts")),
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = responseContent 
+
+                });
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.EndsWith("/price-availability")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ThrowsAsync(new Exception("Simulated error in GetPriceAndAvailability"));
+
+            // Act
+            var result = await _controller.SearchParts("B1", "123");
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
+        [Fact]
+        public async Task SearchParts_ReturnsOkResult_WhenPartsListIsEmpty()
+        {
+            // Arrange
+            var partResponse = new PartResponse { Parts = new List<Part>() }; // Empty list
+            var responseContent = new StringContent(JsonSerializer.Serialize(partResponse), Encoding.UTF8, "application/json");
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = responseContent
+                });
+
+            // Act
+            var result = await _controller.SearchParts("B1", "123");
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var returnedParts = Assert.IsType<PartResponse>(okResult.Value);
+            returnedParts.Parts.Should().BeEmpty();
+        }
+        
+        [Fact]
+        public async Task SearchParts_ReturnsInternalServerError_WhenPartResponseIsNull()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.InternalServerError,
+                    Content = new StringContent("null", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.SearchParts("B1", "123");
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
+        [Fact]
+        public async Task GetBrands_ReturnsBadRequest_WhenApiResponseIsInvalidJson()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.EndsWith("/brands")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{ \"invalid\": json }", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.GetBrands();
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
+        [Fact]
+        public async Task GetBrands_ReturnsBadRequest_WhenKeyloopApiReturnsBadRequest()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.EndsWith("/brands")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.BadRequest,
+                    Content = new StringContent("Bad request from Keyloop API")
+                });
+
+            // Act
+            var result = await _controller.GetBrands();
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(400);
+        }
+        
+        [Fact]
+        public async Task GetBrands_ReturnsOkResult_WhenBrandsListIsEmpty()
+        {
+            // Arrange
+            var brandResponse = new BrandResponse { Brands = new List<Brand>() }; // Empty list
+            var responseContent = new StringContent(JsonSerializer.Serialize(brandResponse), Encoding.UTF8, "application/json");
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req 
+                        => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.EndsWith("/brands")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = responseContent
+
+                });
+
+            // Act
+            var result = await _controller.GetBrands();
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var returnedBrands = Assert.IsType<BrandResponse>(okResult.Value);
+            returnedBrands.Brands.Should().BeEmpty();
+        }
+        
+        [Fact]
+        public async Task GetBrands_ReturnsInternalServerError_WhenBrandResponseIsNull()
+        {
+            // Arrange
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && req.RequestUri.AbsolutePath.EndsWith("/brands")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.InternalServerError,
+                    Content = new StringContent("null", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.GetBrands();
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
+        [Fact]
+        public async Task PlaceOrder_ReturnsBadRequest_WhenApiResponseIsInvalidJson()
+        {
+            // Arrange
+            var orderRequest = CreateSamplePartsOrderRequest();
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath.EndsWith("/parts-orders")),
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{ \"invalid\": json }", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.PlaceOrder(orderRequest);
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
+        [Fact]
+        public async Task PlaceOrder_ReturnsBadRequest_WhenKeyloopApiReturnsBadRequest()
+        {
+            // Arrange
+            var orderRequest = CreateSamplePartsOrderRequest();
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath.EndsWith("/parts-orders")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.BadRequest,
+                    Content = new StringContent("Bad request from Keyloop API")
+                });
+
+            // Act
+            var result = await _controller.PlaceOrder(orderRequest);
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(400);
+        }
+        
+        [Fact]
+        public async Task PlaceOrder_ReturnsInternalServerError_WhenOrderResponseIsNull()
+        {
+            // Arrange
+            var orderRequest = CreateSamplePartsOrderRequest();
+
+            _mockHttpMessageHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath.EndsWith("/parts-orders")), 
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.InternalServerError,
+                    Content = new StringContent("null", Encoding.UTF8, "application/json")
+                });
+
+            // Act
+            var result = await _controller.PlaceOrder(orderRequest);
+
+            // Assert
+            var statusCodeResult = Assert.IsType<ObjectResult>(result);
+            statusCodeResult.StatusCode.Should().Be(500);
+        }
+        
         private static PartResponse CreateSamplePartResponse()
         {
             return new PartResponse
